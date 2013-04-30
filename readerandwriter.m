@@ -16,7 +16,6 @@ x = 8; %x is the number of dimensions
 %-==========================================
 EntitiesPerGeneration=zeros(generations,1);
 fid = fopen(filename);
-y=0;
 literal=',';
 tline = fgetl(fid);
 i=1;
@@ -26,8 +25,8 @@ while ischar(tline)
    tline = fgetl(fid);
    i=i+1;
 end
+clear i;
 fclose(fid);
-
 
 %============================
 
@@ -37,8 +36,11 @@ counter = zeros(2^x, generations); %Go down to work out how many there are at a 
 %Next, split the data so that our old pal tsne.m can read it sensibly.
 %Since the numbers were read in as numbers rather than strings, we need to
 %pad them as strings with 0000 depending how many dimensions we have.
-binary_value=zeros(cols);
- generation_1=zeros(EntitiesPerGeneration(1),x);
+binary_value=zeros(cols,1);
+
+density = zeros(2^x+1,generations);
+colormap = ones(2^x+1,3);%the colours for a single generation
+    
 for i=1:10:generations %Takes every 10th generation instead of all generations
     for j=1:EntitiesPerGeneration(i)
         if numel(num2str(genomematrix(i,j)))<x %Assumes 8D array. Better practice would be to work out the size of the largest value or ask for it
@@ -49,19 +51,16 @@ for i=1:10:generations %Takes every 10th generation instead of all generations
            pad=num2str(pad);
            pad=regexprep(pad,'[^\w'']',''); %Use regexp from http://www.mathworks.co.uk/matlabcentral/newsreader/view_thread/158554 to remove space
            temp= [pad, num2str(genomematrix(i,j))];
-           binary_value(j) = bin2dec(temp);
         else
             temp= num2str(genomematrix(i,j));
-            binary_value(j) = bin2dec(temp);
         end
-        for k = 1:x %Assumes 8
-            generation_1(j,k) = str2num(temp(k));
-        end
+        
+        binary_value(j) = bin2dec(temp);
+        counter((binary_value(j)+1), i) = counter((binary_value(j)+1), i)+1;%make a count of how many there are in each generation
     end
     
     [~, cols_gens] = size(binary_value);
-    density = zeros(2^x+1,generations);
-    colormap = ones(2^x+1,3);%the colours for a single generation
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % The lines below should be uncommented to use a pre-prepared mapping.
    
@@ -69,13 +68,8 @@ for i=1:10:generations %Takes every 10th generation instead of all generations
         %First map the datas
         mapped_data(k,1) = mapped_Xbit(binary_value(k)+1,1);
         mapped_data(k,2) = mapped_Xbit(binary_value(k)+1,2);
-        
-        %Then we want to work out how many of each generation there are
-        counter((binary_value(k)+1), i) = counter((binary_value(k)+1), i)+1;
+
         %Now convert this to a density and hex code...
-       
-    end
-    for k=1:EntitiesPerGeneration(i)
         density((binary_value(k)+1), i) = counter((binary_value(k)+1),i)./max(counter(:,i));
         colormap(binary_value(k)+1,:)=density((binary_value(k)+1),i);
     end
@@ -94,6 +88,28 @@ for i=1:10:generations %Takes every 10th generation instead of all generations
     clf; %Clears the frame of all data allowing us to remove annotations
    %print('-dtiff', figurename); %Prints the generation to a file called generation_x.tiff
 end
+
+% Now plot some other useful data. First, entities per generation vs
+% generations number
+
+figure(2);
+plot(1:10:generations, EntitiesPerGeneration(1:10:generations));
+figure_2 = strcat('entities ', FileName, '.tiff');
+print('-dtiff', figure_2);
+%We now want to work out how many clusters there are in each generation.
+%For simplicity, we assume a cluster has greater than 10 organisms in it.
+numberOfClusters = zeros(generations,1);
+for i=1:10:generations %Takes every 10th generation instead of all generations
+    for j=1:2^x %Goes down counter to last possible space
+        if counter(j,i) > 0
+            numberOfClusters(i) = numberOfClusters(i)+1;
+        end
+    end
+end
+figure(3);
+plot(1:10:generations, numberOfClusters(1:10:generations), '-.r');
+figure_3 = strcat('clusters ', FileName, '.tiff');
+print('-dtiff', figure_3);
 
 cd(startFolder); %Return from whence we started
 
